@@ -118,13 +118,28 @@ fi
 
 # ------------------------------------------------------------------ demarrage
 say "Démarrage de la boucle"
-nohup sh -c "$LOOP_CMD" >/dev/null 2>&1 &
-sleep 25
+# Le "sleep 15" de l'ancienne boucle herite du verrou : on attend qu'il le
+# libere (ou que la cron ait deja relance la nouvelle boucle).
+if pgrep -f "$BASE/seedbox-loop.sh" >/dev/null; then
+    ok "boucle déjà relancée par la cron"
+else
+    flock -w 60 "$BASE/seedbox-loop.lock" true 2>/dev/null || true
+    nohup sh -c "$LOOP_CMD" >/dev/null 2>&1 &
+fi
+
+i=0
+while [ $i -lt 12 ]; do
+    if pgrep -f "$BASE/seedbox-loop.sh" >/dev/null && [ -f "$BASE/status/seedbox.json" ]; then
+        break
+    fi
+    sleep 5
+    i=$((i + 1))
+done
 
 if pgrep -f "$BASE/seedbox-loop.sh" >/dev/null; then
     ok "boucle active"
 else
-    warn "la boucle ne tourne pas, voir $BASE/logs/seedbox-loop.log"
+    warn "la boucle ne tourne pas encore (la cron la relancera dans la minute), voir $BASE/logs/seedbox-loop.log"
 fi
 
 if [ -f "$BASE/status/seedbox.json" ]; then

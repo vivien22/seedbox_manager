@@ -58,10 +58,19 @@ done
 crontab -l > "$BACKUP/crontab.txt" 2>/dev/null || true
 ok "ancienne version sauvegardée"
 
-# On attend la fin d'une synchro de l'ancienne version
+# Arret de l'ancienne synchro (l'ancien service etait une boucle permanente).
+# Un transfert interrompu reprendra automatiquement avec la nouvelle version.
+if systemctl is-active -q seedbox-sync.service 2>/dev/null; then
+    systemctl stop seedbox-sync.service
+    ok "ancien service seedbox-sync arrêté"
+fi
 if [ -f /storage/.cache/seedbox-sync.lock ]; then
-    flock -w 600 /storage/.cache/seedbox-sync.lock true \
-        || warn "ancienne synchro toujours en cours après 10 min"
+    i=0
+    while ! flock -n /storage/.cache/seedbox-sync.lock true 2>/dev/null; do
+        i=$((i + 1))
+        if [ $i -ge 60 ]; then warn "ancienne synchro toujours en cours après 5 min"; break; fi
+        sleep 5
+    done
 fi
 
 # --------------------------------------------------------------- installation
@@ -89,7 +98,7 @@ fi
 mkdir -p "$UNIT_DIR"
 for other in $(grep -l "seedbox-sync.py" "$UNIT_DIR"/* 2>/dev/null || true); do
     case "$(basename "$other")" in
-        seedbox-sync.service|seedbox-sync.timer) ;;
+        seedbox-sync.service|seedbox-sync.timer|*.bak|*.old|*.orig) ;;
         *) warn "autre unité systemd qui lance déjà la synchro : $other (à désactiver)";;
     esac
 done
