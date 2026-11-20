@@ -133,15 +133,19 @@ def human(size):
 
 def kodi_scan(folder=None):
     action = "UpdateLibrary(video)"
+    label = "toute la médiathèque"
     if folder and not SCAN_WHOLE_LIBRARY and '"' not in folder and "\\" not in folder:
         action = 'UpdateLibrary(video,"%s/")' % folder.rstrip("/")
+        label = folder
+    elif folder:
+        label = "toute la médiathèque (nouveau : %s)" % os.path.basename(folder)
 
     result = subprocess.run(
         [KODI_SEND, "--action=" + action],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
     if result.returncode == 0:
-        log("[KODI] Scan demandé : " + (folder or "toute la médiathèque"))
+        log("[KODI] Scan demandé : " + label)
     else:
         log("[ATTENTION] Échec de kodi-send")
 
