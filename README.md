@@ -16,8 +16,8 @@
 
 ## Installation depuis le PC (Windows)
 
-**Le plus simple** : double-clic sur `deploy.bat`, saisis l'adresse IP de la
-Raspberry Pi (Kodi → Paramètres → Informations système), puis réponds aux
+**Le plus simple** : double-clic sur `deploy.bat`. L'adresse IP de la
+Raspberry Pi est déjà réglée (192.168.1.172) ; réponds simplement aux
 demandes de mot de passe (Feral, puis `libreelec` pour la Pi).
 
 Ou dans PowerShell, depuis ce dossier :

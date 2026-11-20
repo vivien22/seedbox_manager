@@ -8,7 +8,7 @@
     .\deploy.ps1 -PiHost 192.168.1.50 -SetupKeys # installe ta cle SSH (plus de mot de passe ensuite)
 #>
 param(
-    [string]$PiHost = "",
+    [string]$PiHost = "192.168.1.172",
     [string]$PiUser = "root",
     [string]$SeedboxHost = "bibien@clymene.feralhosting.com",
     [switch]$SeedboxOnly,
