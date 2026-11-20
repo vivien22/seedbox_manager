@@ -12,20 +12,29 @@
 | `pi/seedbox-sync.py` | Raspberry Pi | rapatrie les fichiers, **visionnage pendant le téléchargement** |
 | `install-seedbox.sh` | seedbox | installe tout côté seedbox |
 | `install-kodi.sh` | Raspberry Pi | installe la synchro + minuteur systemd |
+| `deploy.ps1` / `deploy.bat` | PC Windows | envoie tout et lance les deux installations |
 
-## Installation (depuis PowerShell sur le PC)
+## Installation depuis le PC (Windows)
+
+**Le plus simple** : double-clic sur `deploy.bat`, saisis l'adresse IP de la
+Raspberry Pi (Kodi → Paramètres → Informations système), puis réponds aux
+demandes de mot de passe (Feral, puis `libreelec` pour la Pi).
+
+Ou dans PowerShell, depuis ce dossier :
 
 ```powershell
-cd $HOME\Desktop\seedbox-manager
-
-# 1. Seedbox (en premier)
-scp -r seedbox-v3 bibien@clymene.feralhosting.com:~/
-ssh bibien@clymene.feralhosting.com "sh ~/seedbox-v3/install-seedbox.sh"
-
-# 2. Raspberry Pi (remplace 192.168.1.50 par son adresse)
-scp -r seedbox-v3 root@192.168.1.50:/storage/
-ssh root@192.168.1.50 "sh /storage/seedbox-v3/install-kodi.sh"
+.\deploy.ps1 -PiHost 192.168.1.50              # seedbox puis Pi
+.\deploy.ps1 -SeedboxOnly                      # seedbox seulement
+.\deploy.ps1 -PiHost 192.168.1.50 -PiOnly      # Pi seulement
+.\deploy.ps1 -PiHost 192.168.1.50 -SetupKeys   # installe ta clé SSH : plus de mot de passe ensuite
 ```
+
+Si PowerShell refuse d'exécuter le script :
+`powershell -ExecutionPolicy Bypass -File .\deploy.ps1 -PiHost 192.168.1.50`
+
+`deploy.ps1` copie les fichiers dans `~/seedbox-v3` (seedbox) et
+`/storage/seedbox-v3` (Pi), puis lance `install-seedbox.sh` et `install-kodi.sh`
+par SSH ; tu vois leur sortie en direct.
 
 Chaque script vérifie les prérequis, sauvegarde l'ancienne version
 (`backup-v3-<date>` sur la seedbox, `/storage/.config/seedbox-sync-backup-<date>`
