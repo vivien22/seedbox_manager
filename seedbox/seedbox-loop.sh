@@ -11,7 +11,8 @@ export PYTHONIOENCODING=utf-8
 
 cd "$BASE" || exit 1
 mkdir -p "$BASE/logs" "$BASE/status" "$BASE/organizer_queue" \
-         "$BASE/organizer_failed" "$BASE/sync/ready" "$BASE/sync/processed"
+         "$BASE/organizer_failed" "$BASE/sync/ready" "$BASE/sync/processed" \
+         "$BASE/commands"
 
 rotate() {
     # Garde chaque journal sous 5 Mo (une archive .1)
@@ -24,11 +25,15 @@ while true; do
     rotate "$BASE/logs/organizer.log"
     rotate "$BASE/logs/status.log"
     rotate "$BASE/logs/worker.log"
+    rotate "$BASE/logs/commands.log"
 
     /usr/bin/python "$BASE/worker.py"
 
     /usr/bin/flock -n "$BASE/organizer.lock" \
         /usr/bin/python "$BASE/organizer_v2.py" >> "$BASE/logs/organizer.log" 2>&1
+
+    /usr/bin/flock -n "$BASE/commands.lock" \
+        /usr/bin/python "$BASE/commands.py" >> "$BASE/logs/commands.log" 2>&1
 
     /usr/bin/flock -n "$BASE/status.lock" \
         /usr/bin/python "$BASE/status_dump.py" >> "$BASE/logs/status.log" 2>&1

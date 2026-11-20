@@ -18,6 +18,7 @@ ORGANIZER_QUEUE = BASE + '/organizer_queue'
 ORGANIZER_FAILED = BASE + '/organizer_failed'
 SYNC_READY = BASE + '/sync/ready'
 SYNC_PROCESSED = BASE + '/sync/processed'
+COMMANDS = BASE + '/commands'
 STATUS_DIR = BASE + '/status'
 STATUS_FILE = STATUS_DIR + '/seedbox.json'
 
@@ -86,6 +87,9 @@ def read_text(path):
 
 def stage_of(torrent_id, torrent):
     """Etape du torrent dans la chaine seedbox -> Pi."""
+    if os.path.exists(os.path.join(COMMANDS, torrent_id + '.remove')):
+        return 'removing', None
+
     if os.path.exists(os.path.join(ORGANIZER_FAILED, torrent_id + '.job')):
         reason = read_text(os.path.join(ORGANIZER_FAILED, torrent_id + '.reason'))
         return 'failed', reason
@@ -130,6 +134,9 @@ def on_status(status):
             continue
 
         stage, detail = stage_of(torrent_id, torrent)
+        rejected = read_json(os.path.join(COMMANDS, 'rejected', torrent_id + '.remove'))
+        if rejected and rejected.get('rejected') and not detail:
+            detail = u'Suppression refusée : ' + to_unicode(rejected['rejected'])
         title, category = manifest_name(torrent_id)
 
         processed = os.path.join(SYNC_PROCESSED, torrent_id + '.json')

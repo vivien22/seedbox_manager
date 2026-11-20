@@ -19,7 +19,7 @@ die()  { printf '\n\033[31mERREUR : %s\033[0m\n' "$*" >&2; exit 1; }
 # --------------------------------------------------------------- verifications
 say "Vérifications"
 
-for f in seedbox/worker.py seedbox/organizer_v2.py seedbox/status_dump.py \
+for f in seedbox/worker.py seedbox/organizer_v2.py seedbox/status_dump.py seedbox/commands.py \
          seedbox/seedbox-loop.sh web/index.php; do
     [ -f "$HERE/$f" ] || die "fichier manquant dans le paquet : $f"
 done
@@ -41,7 +41,7 @@ command -v flock >/dev/null || die "flock introuvable"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-for f in worker.py organizer_v2.py status_dump.py; do
+for f in worker.py organizer_v2.py status_dump.py commands.py; do
     cp "$HERE/seedbox/$f" "$TMP/$f"
     /usr/bin/python -m py_compile "$TMP/$f" || die "erreur de syntaxe dans $f"
 done
@@ -65,7 +65,7 @@ ok "locale $LOCALE"
 # ----------------------------------------------------------------- sauvegarde
 say "Sauvegarde dans $BACKUP"
 mkdir -p "$BACKUP"
-for f in worker.py organizer_v2.py status_dump.py seedbox-loop.sh; do
+for f in worker.py organizer_v2.py status_dump.py commands.py seedbox-loop.sh; do
     if [ -f "$BASE/$f" ]; then cp -p "$BASE/$f" "$BACKUP/"; fi
 done
 if [ -f "$WEB/index.php" ]; then cp -p "$WEB/index.php" "$BACKUP/index.php"; fi
@@ -86,10 +86,10 @@ say "Installation"
 mkdir -p "$BASE/logs" "$BASE/status" "$BASE/state" "$BASE/organizer_queue" \
          "$BASE/organizer_processed" "$BASE/organizer_failed" \
          "$BASE/sync/ready" "$BASE/sync/processed" "$BASE/queue" \
-         "$BASE/processed" "$BASE/failed"
-chmod 700 "$BASE/status" "$BASE/state"
+         "$BASE/processed" "$BASE/failed" "$BASE/commands"
+chmod 700 "$BASE/status" "$BASE/state" "$BASE/commands"
 
-for f in worker.py organizer_v2.py status_dump.py seedbox-loop.sh; do
+for f in worker.py organizer_v2.py status_dump.py commands.py seedbox-loop.sh; do
     cp "$HERE/seedbox/$f" "$BASE/$f"
     chmod 700 "$BASE/$f"
 done
@@ -149,7 +149,7 @@ else
 fi
 
 say "Derniers journaux"
-for log in organizer.log status.log; do
+for log in organizer.log status.log commands.log; do
     if [ -f "$BASE/logs/$log" ]; then echo "--- $log"; tail -n 8 "$BASE/logs/$log"; fi
 done
 

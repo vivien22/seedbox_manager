@@ -4,6 +4,7 @@ $config = require '/media/sdt1/bibien/private/seedbox-manager/config.php';
 $baseDir   = dirname($config['queue_dir']);
 $statusDir = isset($config['status_dir']) ? $config['status_dir'] : $baseDir . '/status';
 $stateDir  = isset($config['state_dir'])  ? $config['state_dir']  : $baseDir . '/state';
+$commandsDir = $baseDir . '/commands';
 
 const MAX_LOGIN_FAILURES = 5;
 const LOGIN_WINDOW = 900;      // 15 min
@@ -217,12 +218,14 @@ function stage_label($torrent, $pi)
             return array('En attente de la Raspberry Pi', 'muted');
         case 'on_pi':
             return array('Sur la Raspberry Pi', 'good');
+        case 'removing':
+            return array('Suppression de la seedbox en cours…', 'muted');
         default:
             return array('Terminé (partage)', 'good');
     }
 }
 
-function render_seedbox($seedbox, $pi)
+function render_seedbox($seedbox, $pi, $csrf)
 {
     ob_start();
     echo '<section><h2>Seedbox</h2>';
@@ -296,11 +299,37 @@ function render_seedbox($seedbox, $pi)
         } else {
             echo '<div class="meta">' . h(fmt_bytes($t['size']) . ' · ratio ' . $t['ratio']) . '</div>';
         }
+        if ($t['stage'] !== 'removing') {
+            if ($t['stage'] === 'on_pi') {
+                $warning = 'Supprimer « ' . $title . ' » et ses fichiers de la seedbox ?' . "\n\n" . 'La copie sur la Raspberry Pi est conservée.';
+            } elseif ($t['stage'] === 'ready_for_pi' && pi_is_transferring($pi, $t['id'])) {
+                $warning = null;
+            } else {
+                $warning = 'Supprimer « ' . $title . ' » et ses fichiers de la seedbox ?' . "\n\n" . 'Il n\'est pas encore sur la Raspberry Pi : il ne sera jamais transféré.';
+            }
+
+            if ($warning === null) {
+                echo '<div class="meta">Suppression possible une fois le transfert vers la Pi terminé.</div>';
+            } else {
+                echo '<form method="post" class="remove" onsubmit="return confirm(this.dataset.warning);" data-warning="' . h($warning) . '">'
+                    . '<input type="hidden" name="csrf" value="' . h($csrf) . '">'
+                    . '<input type="hidden" name="action" value="remove">'
+                    . '<input type="hidden" name="torrent_id" value="' . h($t['id']) . '">'
+                    . '<button type="submit" class="danger">Supprimer de la seedbox</button></form>';
+            }
+        }
         echo '</article>';
     }
 
     echo '</section>';
     return ob_get_clean();
+}
+
+function pi_is_transferring($pi, $torrentId)
+{
+    return $pi && isset($pi['updated_at'], $pi['manifest']['torrent_id'])
+        && time() - $pi['updated_at'] < PI_STALE_AFTER
+        && $pi['manifest']['torrent_id'] === $torrentId;
 }
 
 function render_pi($pi)
@@ -393,11 +422,11 @@ function render_pi($pi)
     return ob_get_clean();
 }
 
-function render_status($statusDir)
+function render_status($statusDir, $csrf)
 {
     $seedbox = read_json_file($statusDir . '/seedbox.json');
     $pi = read_json_file($statusDir . '/pi.json');
-    return render_seedbox($seedbox, $pi) . render_pi($pi)
+    return render_seedbox($seedbox, $pi, $csrf) . render_pi($pi)
         . '<p class="updated"><small>Actualisé à ' . h(date('H:i:s')) . '</small></p>';
 }
 
@@ -405,6 +434,7 @@ function render_status($statusDir)
 
 if (isset($_GET['fragment']) && $_GET['fragment'] === 'status') {
     $authenticated = !empty($_SESSION['authenticated']);
+    $csrf = $_SESSION['csrf'];
     session_write_close();
     header('Cache-Control: no-store');
     if (!$authenticated) {
@@ -412,7 +442,7 @@ if (isset($_GET['fragment']) && $_GET['fragment'] === 'status') {
         exit;
     }
     header('Content-Type: text/html; charset=UTF-8');
-    echo render_status($statusDir);
+    echo render_status($statusDir, $csrf);
     exit;
 }
 
@@ -451,6 +481,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             session_destroy();
             header('Location: index.php');
             exit;
+        } elseif ($action === 'remove') {
+            $torrentId = isset($_POST['torrent_id']) ? strtolower((string)$_POST['torrent_id']) : '';
+            $seedbox = read_json_file($statusDir . '/seedbox.json');
+            $pi = read_json_file($statusDir . '/pi.json');
+            $found = null;
+            if ($seedbox && !empty($seedbox['torrents'])) {
+                foreach ($seedbox['torrents'] as $t) {
+                    if ($t['id'] === $torrentId) {
+                        $found = $t;
+                    }
+                }
+            }
+
+            if (empty($_SESSION['authenticated'])) {
+                $error = 'Tu dois te connecter.';
+            } elseif (!preg_match('/^[0-9a-f]{40}$/', $torrentId) || $found === null) {
+                $error = 'Torrent inconnu.';
+            } elseif (pi_is_transferring($pi, $torrentId)) {
+                $error = 'La Raspberry Pi est en train de récupérer ce torrent : réessaie une fois le transfert terminé.';
+            } else {
+                if (!is_dir($commandsDir)) {
+                    @mkdir($commandsDir, 0700, true);
+                }
+                $request = json_encode(array('requested_at' => time(), 'name' => $found['name']));
+                $temporary = $commandsDir . '/.remove-' . bin2hex(random_bytes(8));
+                if (@file_put_contents($temporary, $request) !== false
+                    && @rename($temporary, $commandsDir . '/' . $torrentId . '.remove')) {
+                    $label = !empty($found['title']) ? $found['title'] : $found['name'];
+                    $message = 'Suppression de « ' . $label . ' » demandée : elle sera faite dans moins d’une minute.';
+                } else {
+                    @unlink($temporary);
+                    $error = 'Impossible d’enregistrer la demande de suppression.';
+                }
+            }
         } elseif ($action === 'upload') {
             if (empty($_SESSION['authenticated'])) {
                 $error = 'Tu dois te connecter.';
@@ -534,6 +598,13 @@ button {
     font-weight: bold;
 }
 button.secondary { background: #505967; }
+form.remove button {
+    width: auto;
+    padding: 7px 12px;
+    margin-top: 10px;
+    font-size: 13px;
+}
+button.danger { background: #8a3434; }
 .notice {
     padding: 12px;
     border-radius: 8px;
@@ -607,7 +678,7 @@ summary { cursor: pointer; color: #c5cbd3; }
 </form>
 <p><small>Format accepté : .torrent — taille maximale : 50 Mo.</small></p>
 
-<div id="status"><?php echo render_status($statusDir); ?></div>
+<div id="status"><?php echo render_status($statusDir, $_SESSION['csrf']); ?></div>
 
 <form method="post">
     <input type="hidden" name="csrf" value="<?php echo h($_SESSION['csrf']); ?>">

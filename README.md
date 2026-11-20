@@ -6,6 +6,7 @@
 |---|---|---|
 | `seedbox/worker.py` | seedbox | ajoute les .torrent déposés à Deluge (label `vivien`) |
 | `seedbox/organizer_v2.py` | seedbox | range Films / Séries, écrit le manifeste pour la Pi |
+| `seedbox/commands.py` | seedbox | supprime de Deluge (avec les données) les torrents demandés depuis le site |
 | `seedbox/status_dump.py` | seedbox | **nouveau** : exporte l'état des téléchargements pour le site |
 | `seedbox/seedbox-loop.sh` | seedbox | boucle toutes les 15 s (worker → organiseur → état) |
 | `web/index.php` | seedbox (public_html) | envoi de torrents + **suivi seedbox et Pi en direct** |
@@ -56,6 +57,17 @@ apparaît dans la médiathèque et peut être lancé.
 - L'avance rapide au-delà de la partie déjà reçue ne fonctionne pas.
 - Les fichiers en cours sont listés dans `/storage/.cache/seedbox-sync/in-progress.json` ;
   une coupure (redémarrage, réseau) reprend automatiquement au passage suivant.
+
+## Suppression depuis le site
+
+Le bouton **Supprimer de la seedbox** retire le torrent de Deluge **avec ses
+fichiers**, uniquement sur la seedbox : rien n'est supprimé sur la Raspberry Pi.
+
+- Seuls les torrents du label `vivien` peuvent être supprimés.
+- Si le torrent n'est pas encore sur la Pi, une confirmation prévient qu'il ne
+  sera jamais transféré (son manifeste est mis de côté dans `sync/cancelled/`).
+- Pendant que la Pi le récupère, la suppression est refusée.
+- Journal : `logs/commands.log`.
 
 ## Commandes utiles
 
