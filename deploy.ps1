@@ -17,6 +17,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# Retire les fins de ligne Windows (CRLF) des fichiers copies, au cas ou git
+# les aurait converties sur le PC (core.autocrlf).
+function FixEol($dir) { return "find $dir -type f | while read f; do tr -d \\r < `$f > `$f.eol && cat `$f.eol > `$f && rm -f `$f.eol; done" }
 $here = $PSScriptRoot
 
 function Step($text) { Write-Host "`n==> $text" -ForegroundColor Cyan }
@@ -68,7 +72,7 @@ if ($doSeedbox) {
     }
 
     Step "Installation sur la seedbox"
-    Invoke-Native "install-seedbox.sh" { ssh -t $SeedboxHost "sh ~/seedbox-v3/install-seedbox.sh" }
+    Invoke-Native "install-seedbox.sh" { ssh -t $SeedboxHost ((FixEol "~/seedbox-v3") + " && sh ~/seedbox-v3/install-seedbox.sh") }
 }
 
 # ----------------------------------------------------------- Raspberry Pi
@@ -80,7 +84,7 @@ if ($doPi) {
     }
 
     Step "Installation sur la Raspberry Pi"
-    Invoke-Native "install-kodi.sh" { ssh -t $pi "sh /storage/seedbox-v3/install-kodi.sh" }
+    Invoke-Native "install-kodi.sh" { ssh -t $pi ((FixEol "/storage/seedbox-v3") + " && sh /storage/seedbox-v3/install-kodi.sh") }
 }
 
 Write-Host "`nDeploiement termine." -ForegroundColor Green
