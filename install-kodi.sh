@@ -77,6 +77,10 @@ fi
 say "Installation"
 cp "$HERE/pi/seedbox-sync.py" "$SCRIPT"
 chmod 700 "$SCRIPT"
+if [ -f "$HERE/pi/seedbox-status.py" ]; then
+    tr -d '\r' < "$HERE/pi/seedbox-status.py" > /storage/.config/seedbox-status.py
+    chmod 700 /storage/.config/seedbox-status.py
+fi
 mkdir -p /storage/.cache/seedbox-sync
 
 # Si les sources Kodi ne pointent pas vers le disque sous ce chemin, le scan
@@ -142,6 +146,7 @@ cat <<EOF
 
 Installation terminée.
   Journal en direct : journalctl -fu seedbox-sync
+  Transferts        : python3 /storage/.config/seedbox-status.py --watch
   Lancer à la main  : systemctl start seedbox-sync
   Retour arrière    : systemctl disable --now seedbox-sync.timer \\
                       && cp $BACKUP/seedbox-sync.py $SCRIPT \\

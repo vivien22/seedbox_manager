@@ -6,6 +6,7 @@
     .\deploy.ps1 -SeedboxOnly                    # seedbox seulement
     .\deploy.ps1 -PiHost 192.168.1.50 -PiOnly    # Raspberry Pi seulement
     .\deploy.ps1 -PiHost 192.168.1.50 -SetupKeys # installe ta cle SSH (plus de mot de passe ensuite)
+    .\deploy.ps1 -PiStatus                       # transferts en cours sur la Pi, vitesse en direct
 #>
 param(
     [string]$PiHost = "192.168.1.103",
@@ -13,7 +14,8 @@ param(
     [string]$SeedboxHost = "bibien@clymene.feralhosting.com",
     [switch]$SeedboxOnly,
     [switch]$PiOnly,
-    [switch]$SetupKeys
+    [switch]$SetupKeys,
+    [switch]$PiStatus
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,6 +41,14 @@ foreach ($tool in "ssh", "scp") {
 }
 foreach ($item in "seedbox", "web", "pi", "install-seedbox.sh", "install-kodi.sh") {
     if (-not (Test-Path (Join-Path $here $item))) { Fail "$item manquant a cote de deploy.ps1" }
+}
+
+# --------------------------------------------- suivi des transferts sur la Pi
+if ($PiStatus) {
+    $pi = "$PiUser@$PiHost"
+    Invoke-Native "copie de seedbox-status.py" { scp -q (Join-Path $here "pi\seedbox-status.py") "${pi}:/storage/.config/seedbox-status.py" }
+    ssh -t $pi "python3 /storage/.config/seedbox-status.py --watch"
+    exit 0
 }
 
 $doSeedbox = -not $PiOnly
