@@ -7,6 +7,7 @@
     .\deploy.ps1 -PiHost 192.168.1.50 -PiOnly    # Raspberry Pi seulement
     .\deploy.ps1 -PiHost 192.168.1.50 -SetupKeys # installe ta cle SSH (plus de mot de passe ensuite)
     .\deploy.ps1 -PiStatus                       # transferts en cours sur la Pi, vitesse en direct
+    .\deploy.ps1 -PairPhone                      # code pour autoriser ton telephone sur le site
 #>
 param(
     [string]$PiHost = "192.168.1.103",
@@ -15,7 +16,8 @@ param(
     [switch]$SeedboxOnly,
     [switch]$PiOnly,
     [switch]$SetupKeys,
-    [switch]$PiStatus
+    [switch]$PiStatus,
+    [switch]$PairPhone
 )
 
 $ErrorActionPreference = "Stop"
@@ -41,6 +43,12 @@ foreach ($tool in "ssh", "scp") {
 }
 foreach ($item in "seedbox", "web", "pi", "install-seedbox.sh", "install-kodi.sh") {
     if (-not (Test-Path (Join-Path $here $item))) { Fail "$item manquant a cote de deploy.ps1" }
+}
+
+# ------------------------------------------- autorisation du telephone
+if ($PairPhone) {
+    Invoke-Native "pair-device.sh" { ssh $SeedboxHost "sh /media/sdt1/bibien/private/seedbox-manager/pair-device.sh" }
+    exit 0
 }
 
 # --------------------------------------------- suivi des transferts sur la Pi

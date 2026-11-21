@@ -7,6 +7,7 @@
 | `seedbox/worker.py` | seedbox | ajoute les .torrent déposés à Deluge (label `vivien`) |
 | `seedbox/organizer_v2.py` | seedbox | range Films / Séries, écrit le manifeste pour la Pi |
 | `seedbox/commands.py` | seedbox | supprime de Deluge (avec les données) les torrents demandés depuis le site |
+| `seedbox/pair-device.sh` | seedbox | autorise ton téléphone sur le site (code à usage unique) |
 | `seedbox/status_dump.py` | seedbox | **nouveau** : exporte l'état des téléchargements pour le site |
 | `seedbox/seedbox-loop.sh` | seedbox | boucle toutes les 15 s (worker → organiseur → état) |
 | `web/index.php` | seedbox (public_html) | envoi de torrents + **suivi seedbox et Pi en direct** |
@@ -57,6 +58,35 @@ apparaît dans la médiathèque et peut être lancé.
 - L'avance rapide au-delà de la partie déjà reçue ne fonctionne pas.
 - Les fichiers en cours sont listés dans `/storage/.cache/seedbox-sync/in-progress.json` ;
   une coupure (redémarrage, réseau) reprend automatiquement au passage suivant.
+
+## Accès au site : ton téléphone uniquement
+
+Il n'y a plus de mot de passe. Le site n'est accessible qu'à **un seul
+appareil autorisé** ; tout autre navigateur voit « Appareil non autorisé ».
+
+1. Sur le PC : `.\deploy.ps1 -PairPhone` affiche un code (valable 10 min,
+   utilisable une seule fois) et un lien.
+2. Sur le téléphone : ouvre le lien (ou le site, puis tape le code) et
+   appuie sur **Autoriser cet appareil**.
+
+Le téléphone reçoit un jeton aléatoire de 256 bits dans un cookie protégé
+(HttpOnly, valable 10 ans et prolongé à chaque visite) ; la seedbox n'en
+garde que l'empreinte. Autoriser un nouvel appareil retire l'accès à
+l'ancien. Si tu vides les cookies du navigateur ou changes de téléphone,
+refais l'étape 1.
+
+Sur la seedbox :
+```sh
+sh ~/private/seedbox-manager/pair-device.sh --list     # appareil autorisé
+sh ~/private/seedbox-manager/pair-device.sh --revoke   # retirer tout accès
+```
+
+## Suivre les transferts sur la Pi
+
+```powershell
+.\deploy.ps1 -PiStatus
+```
+ou directement : `ssh -t root@192.168.1.103 python3 /storage/.config/seedbox-status.py --watch`
 
 ## Suppression depuis le site
 

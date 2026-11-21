@@ -6,7 +6,9 @@ $statusDir = isset($config['status_dir']) ? $config['status_dir'] : $baseDir . '
 $stateDir  = isset($config['state_dir'])  ? $config['state_dir']  : $baseDir . '/state';
 $commandsDir = $baseDir . '/commands';
 
-const MAX_LOGIN_FAILURES = 5;
+const DEVICE_COOKIE = 'vivien_device';
+const DEVICE_LIFETIME = 315360000; // 10 ans, prolonge a chaque visite
+const MAX_LOGIN_FAILURES = 5;      // essais de code d'appairage
 const LOGIN_WINDOW = 900;      // 15 min
 const LOGIN_LOCK = 900;        // blocage 15 min
 const PI_STALE_AFTER = 600;    // la Pi publie au moins toutes les 2 min
@@ -147,6 +149,117 @@ function with_login_attempts($stateDir, $callback)
     flock($handle, LOCK_UN);
     fclose($handle);
     return $result;
+}
+
+/* ------------------------------------------------- appareil autorise */
+/*
+ * Plus de mot de passe : un seul appareil (ton telephone) est autorise.
+ * Il recoit un jeton aleatoire de 256 bits dans un cookie HttpOnly ; la
+ * seedbox n'en garde que l'empreinte SHA-256 (state/devices.json).
+ * Pour autoriser un appareil : code a usage unique genere par
+ * pair-device.sh (valable 10 min). Autoriser un nouvel appareil revoque
+ * tous les precedents.
+ */
+
+function devices_file($stateDir)
+{
+    return $stateDir . '/devices.json';
+}
+
+function load_devices($stateDir)
+{
+    $data = read_json_file(devices_file($stateDir));
+    return ($data && isset($data['devices']) && is_array($data['devices'])) ? $data['devices'] : array();
+}
+
+function save_devices($stateDir, $devices)
+{
+    if (!is_dir($stateDir)) {
+        @mkdir($stateDir, 0700, true);
+    }
+    $temporary = $stateDir . '/.devices-' . bin2hex(random_bytes(6));
+    if (@file_put_contents($temporary, json_encode(array('devices' => array_values($devices)))) === false) {
+        return false;
+    }
+    @chmod($temporary, 0600);
+    return @rename($temporary, devices_file($stateDir));
+}
+
+function user_agent()
+{
+    return isset($_SERVER['HTTP_USER_AGENT']) ? substr((string)$_SERVER['HTTP_USER_AGENT'], 0, 200) : '';
+}
+
+function set_device_cookie($token)
+{
+    $secure = !empty($_SERVER['HTTPS']);
+    if (PHP_VERSION_ID >= 70300) {
+        setcookie(DEVICE_COOKIE, $token, array(
+            'expires' => time() + DEVICE_LIFETIME, 'path' => '/',
+            'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
+        ));
+    } else {
+        setcookie(DEVICE_COOKIE, $token, time() + DEVICE_LIFETIME, '/; samesite=Lax', '', $secure, true);
+    }
+}
+
+function current_device($stateDir)
+{
+    $token = isset($_COOKIE[DEVICE_COOKIE]) ? (string)$_COOKIE[DEVICE_COOKIE] : '';
+    if (!preg_match('/^[0-9a-f]{64}$/', $token)) {
+        return null;
+    }
+    $hash = hash('sha256', $token);
+    $devices = load_devices($stateDir);
+
+    foreach ($devices as $i => $device) {
+        if (isset($device['hash']) && hash_equals((string)$device['hash'], $hash)) {
+            if (time() - (int)$device['last_seen'] > 3600) {
+                $devices[$i]['last_seen'] = time();
+                $devices[$i]['user_agent'] = user_agent();
+                save_devices($stateDir, $devices);
+                set_device_cookie($token);
+            }
+            return $devices[$i];
+        }
+    }
+    return null;
+}
+
+function normalize_pairing_code($code)
+{
+    return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)$code));
+}
+
+/** Retourne 'ok', 'invalid' ou 'expired'. */
+function pair_device($stateDir, $code)
+{
+    $pairingFile = $stateDir . '/pairing.json';
+    $pairing = read_json_file($pairingFile);
+    if (!$pairing || empty($pairing['hash']) || (int)$pairing['expires'] < time()) {
+        return 'expired';
+    }
+
+    $code = normalize_pairing_code($code);
+    if ($code === '' || !hash_equals((string)$pairing['hash'], hash('sha256', $code))) {
+        return 'invalid';
+    }
+
+    @unlink($pairingFile); // usage unique
+
+    $token = bin2hex(random_bytes(32));
+    $device = array(
+        'id' => bin2hex(random_bytes(4)),
+        'hash' => hash('sha256', $token),
+        'created' => time(),
+        'last_seen' => time(),
+        'user_agent' => user_agent(),
+    );
+    if (!save_devices($stateDir, array($device))) {
+        return 'invalid';
+    }
+    set_device_cookie($token);
+    return 'ok';
 }
 
 function client_key()
@@ -432,8 +545,11 @@ function render_status($statusDir, $csrf)
 
 /* ------------------------------------------------- fragment rafraichi en JS */
 
+$device = current_device($stateDir);
+$authorized = $device !== null;
+
 if (isset($_GET['fragment']) && $_GET['fragment'] === 'status') {
-    $authenticated = !empty($_SESSION['authenticated']);
+    $authenticated = $authorized;
     $csrf = $_SESSION['csrf'];
     session_write_close();
     header('Cache-Control: no-store');
@@ -459,28 +575,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $action = isset($_POST['action']) ? $_POST['action'] : '';
 
-        if ($action === 'login') {
-            $password = isset($_POST['password']) ? (string)$_POST['password'] : '';
+        if ($action === 'pair') {
             $locked = login_locked_for($stateDir);
-
             if ($locked > 0) {
-                $error = 'Trop de tentatives. Réessaie dans ' . fmt_duration($locked) . '.';
-            } elseif (password_verify($password, $config['password_hash'])) {
-                clear_login_failures($stateDir);
-                session_regenerate_id(true);
-                $_SESSION['authenticated'] = true;
-                $_SESSION['csrf'] = bin2hex(random_bytes(32));
-                $message = 'Connexion réussie.';
+                $error = 'Trop de codes faux. Réessaie dans ' . fmt_duration($locked) . '.';
             } else {
+                $result = pair_device($stateDir, isset($_POST['code']) ? $_POST['code'] : '');
+                if ($result === 'ok') {
+                    clear_login_failures($stateDir);
+                    session_regenerate_id(true);
+                    $_SESSION['csrf'] = bin2hex(random_bytes(32));
+                    header('Location: index.php?paired=1');
+                    exit;
+                }
                 register_login_failure($stateDir);
                 sleep(1);
-                $error = 'Mot de passe incorrect.';
+                $error = $result === 'expired'
+                    ? 'Aucun code valide en attente : génère-en un nouveau depuis ton PC.'
+                    : 'Code incorrect.';
             }
-        } elseif ($action === 'logout') {
-            $_SESSION = array();
-            session_destroy();
-            header('Location: index.php');
-            exit;
         } elseif ($action === 'remove') {
             $torrentId = isset($_POST['torrent_id']) ? strtolower((string)$_POST['torrent_id']) : '';
             $seedbox = read_json_file($statusDir . '/seedbox.json');
@@ -494,8 +607,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            if (empty($_SESSION['authenticated'])) {
-                $error = 'Tu dois te connecter.';
+            if (!$authorized) {
+                $error = 'Appareil non autorisé.';
             } elseif (!preg_match('/^[0-9a-f]{40}$/', $torrentId) || $found === null) {
                 $error = 'Torrent inconnu.';
             } elseif (pi_is_transferring($pi, $torrentId)) {
@@ -516,8 +629,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         } elseif ($action === 'upload') {
-            if (empty($_SESSION['authenticated'])) {
-                $error = 'Tu dois te connecter.';
+            if (!$authorized) {
+                $error = 'Appareil non autorisé.';
             } elseif (!isset($_FILES['torrent']) || is_array($_FILES['torrent']['name'])) {
                 $error = 'Aucun fichier reçu.';
             } else {
@@ -551,7 +664,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$authenticated = !empty($_SESSION['authenticated']);
+if (isset($_GET['paired']) && $authorized && $message === '' && $error === '') {
+    $message = 'Ce téléphone est maintenant le seul appareil autorisé.';
+}
+$pairingCode = isset($_GET['pair']) ? normalize_pairing_code($_GET['pair']) : '';
+$authenticated = $authorized;
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -613,6 +730,7 @@ button.danger { background: #8a3434; }
 }
 .error { background: #633333; }
 small, .muted, .meta, .sub { color: #aab2bd; }
+code { background: #15191f; padding: 3px 6px; border-radius: 4px; }
 .item {
     background: #1a1f27;
     border-radius: 10px;
@@ -661,13 +779,18 @@ summary { cursor: pointer; color: #c5cbd3; }
 <?php endif; ?>
 
 <?php if (!$authenticated): ?>
-<h2>Connexion</h2>
-<form method="post">
+<h2>Appareil non autorisé</h2>
+<p>Cette page n'est accessible que depuis ton téléphone. Pour l'autoriser,
+génère un code depuis ton PC&nbsp;:</p>
+<p><code>.\deploy.ps1 -PairPhone</code></p>
+<form method="post" action="index.php">
     <input type="hidden" name="csrf" value="<?php echo h($_SESSION['csrf']); ?>">
-    <input type="hidden" name="action" value="login">
-    <input type="password" name="password" placeholder="Mot de passe" required autocomplete="current-password">
-    <button type="submit">Se connecter</button>
+    <input type="hidden" name="action" value="pair">
+    <input type="text" name="code" placeholder="Code (ex. ABCDE-FGHJK)" value="<?php echo h($pairingCode); ?>"
+           required autocomplete="one-time-code" autocapitalize="characters" spellcheck="false">
+    <button type="submit">Autoriser cet appareil</button>
 </form>
+<p><small>Autoriser un nouvel appareil retire l'accès à tous les autres.</small></p>
 <?php else: ?>
 <h2>Ajouter un torrent</h2>
 <form method="post" enctype="multipart/form-data">
@@ -680,11 +803,7 @@ summary { cursor: pointer; color: #c5cbd3; }
 
 <div id="status"><?php echo render_status($statusDir, $_SESSION['csrf']); ?></div>
 
-<form method="post">
-    <input type="hidden" name="csrf" value="<?php echo h($_SESSION['csrf']); ?>">
-    <input type="hidden" name="action" value="logout">
-    <button class="secondary" type="submit">Se déconnecter</button>
-</form>
+<p class="updated"><small>Appareil autorisé le <?php echo h(date('d/m/Y', (int)$device['created'])); ?></small></p>
 
 <script>
 (function () {

@@ -19,7 +19,7 @@ die()  { printf '\n\033[31mERREUR : %s\033[0m\n' "$*" >&2; exit 1; }
 # --------------------------------------------------------------- verifications
 say "Vérifications"
 
-for f in seedbox/worker.py seedbox/organizer_v2.py seedbox/status_dump.py seedbox/commands.py \
+for f in seedbox/worker.py seedbox/organizer_v2.py seedbox/status_dump.py seedbox/commands.py seedbox/pair-device.sh \
          seedbox/seedbox-loop.sh web/index.php; do
     [ -f "$HERE/$f" ] || die "fichier manquant dans le paquet : $f"
 done
@@ -46,6 +46,8 @@ for f in worker.py organizer_v2.py status_dump.py commands.py; do
     /usr/bin/python -m py_compile "$TMP/$f" || die "erreur de syntaxe dans $f"
 done
 sh -n "$HERE/seedbox/seedbox-loop.sh" || die "erreur de syntaxe dans seedbox-loop.sh"
+sh -n "$HERE/seedbox/pair-device.sh" || die "erreur de syntaxe dans pair-device.sh"
+command -v sha256sum >/dev/null || die "sha256sum introuvable"
 if command -v php >/dev/null; then
     php -l "$HERE/web/index.php" >/dev/null || die "erreur de syntaxe dans index.php"
 fi
@@ -65,7 +67,7 @@ ok "locale $LOCALE"
 # ----------------------------------------------------------------- sauvegarde
 say "Sauvegarde dans $BACKUP"
 mkdir -p "$BACKUP"
-for f in worker.py organizer_v2.py status_dump.py commands.py seedbox-loop.sh; do
+for f in worker.py organizer_v2.py status_dump.py commands.py pair-device.sh seedbox-loop.sh; do
     if [ -f "$BASE/$f" ]; then cp -p "$BASE/$f" "$BACKUP/"; fi
 done
 if [ -f "$WEB/index.php" ]; then cp -p "$WEB/index.php" "$BACKUP/index.php"; fi
@@ -89,7 +91,7 @@ mkdir -p "$BASE/logs" "$BASE/status" "$BASE/state" "$BASE/organizer_queue" \
          "$BASE/processed" "$BASE/failed" "$BASE/commands"
 chmod 700 "$BASE/status" "$BASE/state" "$BASE/commands"
 
-for f in worker.py organizer_v2.py status_dump.py commands.py seedbox-loop.sh; do
+for f in worker.py organizer_v2.py status_dump.py commands.py pair-device.sh seedbox-loop.sh; do
     cp "$HERE/seedbox/$f" "$BASE/$f"
     chmod 700 "$BASE/$f"
 done
@@ -157,6 +159,7 @@ cat <<EOF
 
 Installation terminée.
   Site web        : https://bibien.clymene.feralhosting.com/
+  Autoriser le téléphone : .\\deploy.ps1 -PairPhone  (ou sh $BASE/pair-device.sh)
   Journaux        : $BASE/logs/
   Retour arrière  : cp $BACKUP/*.py $BACKUP/seedbox-loop.sh $BASE/ \\
                     && cp $BACKUP/index.php $WEB/ \\
