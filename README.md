@@ -19,7 +19,7 @@
 ## Installation depuis le PC (Windows)
 
 **Le plus simple** : double-clic sur `deploy.bat`. L'adresse IP de la
-Raspberry Pi est déjà réglée (192.168.1.103) ; réponds simplement aux
+Raspberry Pi est déjà réglée (192.168.1.100) ; réponds simplement aux
 demandes de mot de passe (Feral, puis `libreelec` pour la Pi).
 
 Ou dans PowerShell, depuis ce dossier :
@@ -86,7 +86,7 @@ sh ~/private/seedbox-manager/pair-device.sh --revoke   # retirer tout accès
 ```powershell
 .\deploy.ps1 -PiStatus
 ```
-ou directement : `ssh -t root@192.168.1.103 python3 /storage/.config/seedbox-status.py --watch`
+ou directement : `ssh -t root@192.168.1.100 python3 /storage/.config/seedbox-status.py --watch`
 
 ## Suppression depuis le site
 

@@ -10,7 +10,7 @@
     .\deploy.ps1 -PairPhone                      # code pour autoriser ton telephone sur le site
 #>
 param(
-    [string]$PiHost = "192.168.1.103",
+    [string]$PiHost = "192.168.1.100",
     [string]$PiUser = "root",
     [string]$SeedboxHost = "bibien@clymene.feralhosting.com",
     [switch]$SeedboxOnly,
