@@ -66,7 +66,7 @@ accèdent au site ; tout autre navigateur voit « Appareil non autorisé ».
 
 1. Sur le PC, génère un code pour l'appareil :
    ```powershell
-   .\deploy.ps1 -Pair Telephone     # le téléphone
+   .\deploy.ps1 -Pair Phone         # le téléphone
    .\deploy.ps1 -Pair PC            # un autre appareil, avec le nom de ton choix
    ```
    Le code est valable 10 minutes et utilisable une seule fois.

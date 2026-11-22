@@ -1,7 +1,7 @@
 #!/bin/sh
 # Autorise un appareil (telephone, PC...) a utiliser le site web.
 #   sh pair-device.sh [Nom]          -> code a usage unique (10 min) pour l'appareil "Nom"
-#                                       (defaut : Telephone). Un appareil deja autorise
+#                                       (defaut : Phone). Un appareil deja autorise
 #                                       sous le meme nom est remplace.
 #   sh pair-device.sh --list         -> appareils autorises
 #   sh pair-device.sh --revoke Nom   -> retire l'acces a l'appareil "Nom"
@@ -37,7 +37,7 @@ if not devices:
     out(u"Aucun appareil autorisé.")
 for d in sorted(devices, key=lambda d: d["created"]):
     out(u"%-15s autorisé le %s, vu le %s" % (
-        d.get("name", u"Téléphone"),
+        d.get("name", u"Phone"),
         time.strftime("%d/%m/%Y %H:%M", time.localtime(d["created"])),
         time.strftime("%d/%m/%Y %H:%M", time.localtime(d["last_seen"]))))
 EOF
@@ -60,13 +60,11 @@ def out(x):
     sys.stdout.write(x.encode("utf-8") if sys.version_info[0] < 3 else x)
     sys.stdout.write("\n")
 path, name = sys.argv[1], u(sys.argv[2]).lower()
-if name == u"telephone":
-    name = u"téléphone"
 try:
     devices = json.load(open(path)).get("devices", [])
 except (IOError, ValueError):
     devices = []
-kept = [d for d in devices if d.get("name", u"Téléphone").lower() != name]
+kept = [d for d in devices if d.get("name", u"Phone").lower() != name]
 if len(kept) == len(devices):
     out(u"Aucun appareil de ce nom.")
     sys.exit(1)
@@ -81,7 +79,7 @@ EOF
         ;;
 esac
 
-NAME="${1:-Telephone}"
+NAME="${1:-Phone}"
 
 # 10 caracteres sans ambiguite (pas de 0/O, 1/I/L) : ~50 bits, usage unique,
 # valable 10 min, 5 essais par quart d'heure -> impossible a deviner.

@@ -248,7 +248,7 @@ function pair_device($stateDir, $code)
 
     @unlink($pairingFile); // usage unique
 
-    $name = isset($pairing['name']) ? device_name($pairing['name']) : 'Téléphone';
+    $name = isset($pairing['name']) ? device_name($pairing['name']) : 'Phone';
     $token = bin2hex(random_bytes(32));
     $device = array(
         'id' => bin2hex(random_bytes(4)),
@@ -262,7 +262,7 @@ function pair_device($stateDir, $code)
     // Meme nom = meme appareil re-autorise (cookies effaces, nouveau telephone...)
     $devices = array();
     foreach (load_devices($stateDir) as $existing) {
-        $existingName = isset($existing['name']) ? $existing['name'] : 'Téléphone';
+        $existingName = isset($existing['name']) ? $existing['name'] : 'Phone';
         if (text_lower($existingName) !== text_lower($name)) {
             $devices[] = $existing;
         }
@@ -292,9 +292,6 @@ function device_name($value)
 {
     $value = trim(preg_replace('/[^\p{L}\p{N} ._\-]/u', '', (string)$value));
     $value = function_exists('mb_substr') ? mb_substr($value, 0, 30, 'UTF-8') : substr($value, 0, 30);
-    if (strtolower($value) === 'telephone') {
-        return 'Téléphone';
-    }
     return $value === '' ? 'Appareil' : $value;
 }
 
@@ -308,7 +305,7 @@ function render_devices($stateDir, $current, $csrf)
     ob_start();
     echo '<details class="devices"><summary>Appareils autorisés (' . count($devices) . ')</summary><ul class="files">';
     foreach ($devices as $d) {
-        $name = isset($d['name']) ? $d['name'] : 'Téléphone';
+        $name = isset($d['name']) ? $d['name'] : 'Phone';
         $isCurrent = $current && $d['id'] === $current['id'];
         echo '<li><strong>' . h($name) . '</strong>' . ($isCurrent ? ' <small>(cet appareil)</small>' : '')
             . '<br><small>autorisé le ' . h(date('d/m/Y', (int)$d['created']))
@@ -680,7 +677,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     header('Location: index.php');
                     exit;
                 } else {
-                    $message = 'Accès retiré à « ' . (isset($removed['name']) ? $removed['name'] : 'Téléphone') . ' ».';
+                    $message = 'Accès retiré à « ' . (isset($removed['name']) ? $removed['name'] : 'Phone') . ' ».';
                 }
             }
         } elseif ($action === 'remove') {

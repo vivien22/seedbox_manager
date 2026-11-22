@@ -13,7 +13,7 @@
     .\deploy.ps1 -PiHost 192.168.1.x autre adresse pour la Pi (defaut : 192.168.1.100)
 
   Appareils autorises sur le site
-    .\deploy.ps1 -Pair Telephone     autorise un appareil (code a usage unique, nom libre)
+    .\deploy.ps1 -Pair Phone         autorise un appareil (code a usage unique, nom libre)
     .\deploy.ps1 -Pair PC
     .\deploy.ps1 -Unpair PC          retire l'acces a un appareil
     .\deploy.ps1 -Devices            liste des appareils autorises
