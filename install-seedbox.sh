@@ -165,3 +165,14 @@ Installation terminée.
                     && cp $BACKUP/index.php $WEB/ \\
                     && pkill -f $BASE/seedbox-loop.sh
 EOF
+
+# ------------------------------------------------------------------ menage
+# Dossier de transit depose par deploy.ps1 : inutile une fois installe.
+# (on ne supprime que ce dossier precis, jamais un clone du depot)
+if [ "$HERE" = "$HOME/seedbox-v3" ]; then
+    rm -rf "$HERE"
+fi
+# On garde les 5 sauvegardes les plus recentes
+ls -1d "$BASE"/backup-v3-* 2>/dev/null | sort -r | tail -n +6 | while read -r old; do
+    rm -rf "$old"
+done

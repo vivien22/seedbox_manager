@@ -152,3 +152,13 @@ Installation terminée.
                       && cp $BACKUP/seedbox-sync.py $SCRIPT \\
                       && crontab $BACKUP/crontab.txt
 EOF
+
+# ------------------------------------------------------------------ menage
+# Dossier de transit depose par deploy.ps1 : inutile une fois installe.
+if [ "$HERE" = "/storage/seedbox-v3" ]; then
+    rm -rf "$HERE"
+fi
+# On garde les 5 sauvegardes les plus recentes
+ls -1d /storage/.config/seedbox-sync-backup-* 2>/dev/null | sort -r | tail -n +6 | while read -r old; do
+    rm -rf "$old"
+done
