@@ -8,6 +8,8 @@
     .\deploy.ps1 -PiHost 192.168.1.50 -SetupKeys # installe ta cle SSH (plus de mot de passe ensuite)
     .\deploy.ps1 -PiStatus                       # transferts en cours sur la Pi, vitesse en direct
     .\deploy.ps1 -PairPhone                      # code pour autoriser ton telephone sur le site
+    .\deploy.ps1 -PairDevice PC                  # code pour autoriser un autre appareil (ici "PC")
+    .\deploy.ps1 -ListDevices                    # appareils autorises
 #>
 param(
     [string]$PiHost = "192.168.1.100",
@@ -17,7 +19,9 @@ param(
     [switch]$PiOnly,
     [switch]$SetupKeys,
     [switch]$PiStatus,
-    [switch]$PairPhone
+    [switch]$PairPhone,
+    [string]$PairDevice = "",
+    [switch]$ListDevices
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,8 +50,15 @@ foreach ($item in "seedbox", "web", "pi", "install-seedbox.sh", "install-kodi.sh
 }
 
 # ------------------------------------------- autorisation du telephone
-if ($PairPhone) {
-    Invoke-Native "pair-device.sh" { ssh $SeedboxHost "sh /media/sdt1/bibien/private/seedbox-manager/pair-device.sh" }
+$pairScript = "/media/sdt1/bibien/private/seedbox-manager/pair-device.sh"
+if ($PairPhone -and -not $PairDevice) { $PairDevice = "Telephone" }
+if ($PairDevice) {
+    if ($PairDevice -notmatch '^[A-Za-z0-9._-]{1,30}$') { Fail "Nom d'appareil : lettres, chiffres, . _ - (30 caracteres max, sans espace ni accent)" }
+    Invoke-Native "pair-device.sh" { ssh $SeedboxHost "sh $pairScript $PairDevice" }
+    exit 0
+}
+if ($ListDevices) {
+    Invoke-Native "pair-device.sh" { ssh $SeedboxHost "sh $pairScript --list" }
     exit 0
 }
 

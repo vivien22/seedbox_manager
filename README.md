@@ -7,7 +7,7 @@
 | `seedbox/worker.py` | seedbox | ajoute les .torrent déposés à Deluge (label `vivien`) |
 | `seedbox/organizer_v2.py` | seedbox | range Films / Séries, écrit le manifeste pour la Pi |
 | `seedbox/commands.py` | seedbox | supprime de Deluge (avec les données) les torrents demandés depuis le site |
-| `seedbox/pair-device.sh` | seedbox | autorise ton téléphone sur le site (code à usage unique) |
+| `seedbox/pair-device.sh` | seedbox | autorise un appareil sur le site (code à usage unique) |
 | `seedbox/status_dump.py` | seedbox | **nouveau** : exporte l'état des téléchargements pour le site |
 | `seedbox/seedbox-loop.sh` | seedbox | boucle toutes les 15 s (worker → organiseur → état) |
 | `web/index.php` | seedbox (public_html) | envoi de torrents + **suivi seedbox et Pi en direct** |
@@ -59,26 +59,31 @@ apparaît dans la médiathèque et peut être lancé.
 - Les fichiers en cours sont listés dans `/storage/.cache/seedbox-sync/in-progress.json` ;
   une coupure (redémarrage, réseau) reprend automatiquement au passage suivant.
 
-## Accès au site : ton téléphone uniquement
+## Accès au site : appareils autorisés uniquement
 
-Il n'y a plus de mot de passe. Le site n'est accessible qu'à **un seul
-appareil autorisé** ; tout autre navigateur voit « Appareil non autorisé ».
+Il n'y a pas de mot de passe. Seuls les appareils autorisés (5 au plus)
+accèdent au site ; tout autre navigateur voit « Appareil non autorisé ».
 
-1. Sur le PC : `.\deploy.ps1 -PairPhone` affiche un code (valable 10 min,
-   utilisable une seule fois) et un lien.
-2. Sur le téléphone : ouvre le lien (ou le site, puis tape le code) et
-   appuie sur **Autoriser cet appareil**.
+1. Sur le PC, génère un code pour l'appareil :
+   ```powershell
+   .\deploy.ps1 -PairPhone          # le téléphone
+   .\deploy.ps1 -PairDevice PC      # un autre appareil, avec le nom de ton choix
+   ```
+   Le code est valable 10 minutes et utilisable une seule fois.
+2. Sur l'appareil : ouvre le lien affiché (ou le site, puis tape le code)
+   et appuie sur **Autoriser cet appareil**.
 
-Le téléphone reçoit un jeton aléatoire de 256 bits dans un cookie protégé
+Chaque appareil reçoit un jeton aléatoire de 256 bits dans un cookie protégé
 (HttpOnly, valable 10 ans et prolongé à chaque visite) ; la seedbox n'en
-garde que l'empreinte. Autoriser un nouvel appareil retire l'accès à
-l'ancien. Si tu vides les cookies du navigateur ou changes de téléphone,
-refais l'étape 1.
+garde que l'empreinte. Ré-autoriser un appareil sous le même nom remplace
+l'ancien (cookies effacés, nouveau téléphone…).
 
-Sur la seedbox :
+La liste des appareils est en bas du site, avec un bouton **Retirer l'accès**.
+Depuis le PC : `.\deploy.ps1 -ListDevices`. Sur la seedbox :
 ```sh
-sh ~/private/seedbox-manager/pair-device.sh --list     # appareil autorisé
-sh ~/private/seedbox-manager/pair-device.sh --revoke   # retirer tout accès
+sh ~/private/seedbox-manager/pair-device.sh --list
+sh ~/private/seedbox-manager/pair-device.sh --revoke PC
+sh ~/private/seedbox-manager/pair-device.sh --revoke-all
 ```
 
 ## Suivre les transferts sur la Pi

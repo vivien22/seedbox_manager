@@ -8,6 +8,7 @@ $commandsDir = $baseDir . '/commands';
 
 const DEVICE_COOKIE = 'vivien_device';
 const DEVICE_LIFETIME = 315360000; // 10 ans, prolonge a chaque visite
+const MAX_DEVICES = 5;
 const MAX_LOGIN_FAILURES = 5;      // essais de code d'appairage
 const LOGIN_WINDOW = 900;      // 15 min
 const LOGIN_LOCK = 900;        // blocage 15 min
@@ -153,12 +154,12 @@ function with_login_attempts($stateDir, $callback)
 
 /* ------------------------------------------------- appareil autorise */
 /*
- * Plus de mot de passe : un seul appareil (ton telephone) est autorise.
+ * Plus de mot de passe : seuls les appareils autorises (telephone, PC...) ont acces.
  * Il recoit un jeton aleatoire de 256 bits dans un cookie HttpOnly ; la
  * seedbox n'en garde que l'empreinte SHA-256 (state/devices.json).
  * Pour autoriser un appareil : code a usage unique genere par
- * pair-device.sh (valable 10 min). Autoriser un nouvel appareil revoque
- * tous les precedents.
+ * pair-device.sh <nom> (valable 10 min). Un appareil re-autorise sous le
+ * meme nom remplace l'ancien ; MAX_DEVICES appareils au plus.
  */
 
 function devices_file($stateDir)
@@ -247,19 +248,82 @@ function pair_device($stateDir, $code)
 
     @unlink($pairingFile); // usage unique
 
+    $name = isset($pairing['name']) ? device_name($pairing['name']) : 'Téléphone';
     $token = bin2hex(random_bytes(32));
     $device = array(
         'id' => bin2hex(random_bytes(4)),
+        'name' => $name,
         'hash' => hash('sha256', $token),
         'created' => time(),
         'last_seen' => time(),
         'user_agent' => user_agent(),
     );
-    if (!save_devices($stateDir, array($device))) {
+
+    // Meme nom = meme appareil re-autorise (cookies effaces, nouveau telephone...)
+    $devices = array();
+    foreach (load_devices($stateDir) as $existing) {
+        $existingName = isset($existing['name']) ? $existing['name'] : 'Téléphone';
+        if (text_lower($existingName) !== text_lower($name)) {
+            $devices[] = $existing;
+        }
+    }
+    $devices[] = $device;
+
+    // Au-dela de MAX_DEVICES, on retire le moins recemment utilise
+    usort($devices, function ($a, $b) {
+        return (int)$b['last_seen'] - (int)$a['last_seen'];
+    });
+    $devices = array_slice($devices, 0, MAX_DEVICES);
+
+    if (!save_devices($stateDir, $devices)) {
         return 'invalid';
     }
     set_device_cookie($token);
+    $_SESSION['paired_name'] = $name;
     return 'ok';
+}
+
+function text_lower($value)
+{
+    return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+}
+
+function device_name($value)
+{
+    $value = trim(preg_replace('/[^\p{L}\p{N} ._\-]/u', '', (string)$value));
+    $value = function_exists('mb_substr') ? mb_substr($value, 0, 30, 'UTF-8') : substr($value, 0, 30);
+    if (strtolower($value) === 'telephone') {
+        return 'Téléphone';
+    }
+    return $value === '' ? 'Appareil' : $value;
+}
+
+function render_devices($stateDir, $current, $csrf)
+{
+    $devices = load_devices($stateDir);
+    usort($devices, function ($a, $b) {
+        return (int)$a['created'] - (int)$b['created'];
+    });
+
+    ob_start();
+    echo '<details class="devices"><summary>Appareils autorisés (' . count($devices) . ')</summary><ul class="files">';
+    foreach ($devices as $d) {
+        $name = isset($d['name']) ? $d['name'] : 'Téléphone';
+        $isCurrent = $current && $d['id'] === $current['id'];
+        echo '<li><strong>' . h($name) . '</strong>' . ($isCurrent ? ' <small>(cet appareil)</small>' : '')
+            . '<br><small>autorisé le ' . h(date('d/m/Y', (int)$d['created']))
+            . ' · vu ' . h(fmt_ago($d['last_seen'])) . '</small>';
+        $warning = $isCurrent
+            ? 'Retirer l’accès à cet appareil ? Il faudra le ré-autoriser avec un nouveau code.'
+            : 'Retirer l’accès à « ' . $name . ' » ?';
+        echo '<form method="post" class="remove" onsubmit="return confirm(this.dataset.warning);" data-warning="' . h($warning) . '">'
+            . '<input type="hidden" name="csrf" value="' . h($csrf) . '">'
+            . '<input type="hidden" name="action" value="revoke_device">'
+            . '<input type="hidden" name="device_id" value="' . h($d['id']) . '">'
+            . '<button type="submit" class="danger">Retirer l’accès</button></form></li>';
+    }
+    echo '</ul><p><small>Ajouter un appareil : <code>.\\deploy.ps1 -PairDevice NomDeLAppareil</code></small></p></details>';
+    return ob_get_clean();
 }
 
 function client_key()
@@ -594,6 +658,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ? 'Aucun code valide en attente : génère-en un nouveau depuis ton PC.'
                     : 'Code incorrect.';
             }
+        } elseif ($action === 'revoke_device') {
+            $deviceId = isset($_POST['device_id']) ? (string)$_POST['device_id'] : '';
+            if (!$authorized) {
+                $error = 'Appareil non autorisé.';
+            } else {
+                $kept = array();
+                $removed = null;
+                foreach (load_devices($stateDir) as $d) {
+                    if (hash_equals((string)$d['id'], $deviceId)) {
+                        $removed = $d;
+                    } else {
+                        $kept[] = $d;
+                    }
+                }
+                if ($removed === null) {
+                    $error = 'Appareil inconnu.';
+                } elseif (!save_devices($stateDir, $kept)) {
+                    $error = 'Impossible d’enregistrer la modification.';
+                } elseif ($removed['id'] === $device['id']) {
+                    header('Location: index.php');
+                    exit;
+                } else {
+                    $message = 'Accès retiré à « ' . (isset($removed['name']) ? $removed['name'] : 'Téléphone') . ' ».';
+                }
+            }
         } elseif ($action === 'remove') {
             $torrentId = isset($_POST['torrent_id']) ? strtolower((string)$_POST['torrent_id']) : '';
             $seedbox = read_json_file($statusDir . '/seedbox.json');
@@ -665,7 +754,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (isset($_GET['paired']) && $authorized && $message === '' && $error === '') {
-    $message = 'Ce téléphone est maintenant le seul appareil autorisé.';
+    $pairedName = isset($_SESSION['paired_name']) ? $_SESSION['paired_name'] : 'Cet appareil';
+    unset($_SESSION['paired_name']);
+    $message = '« ' . $pairedName . ' » est maintenant autorisé.';
 }
 $pairingCode = isset($_GET['pair']) ? normalize_pairing_code($_GET['pair']) : '';
 $authenticated = $authorized;
@@ -761,6 +852,8 @@ code { background: #15191f; padding: 3px 6px; border-radius: 4px; }
 .files li.downloading { color: #6fb1ff; }
 .files li.error { color: #ff8a8a; background: none; }
 details { margin-top: 12px; }
+details.devices { margin-top: 28px; }
+.devices li { padding: 8px 0; border-top: 1px solid #323a46; }
 summary { cursor: pointer; color: #c5cbd3; }
 .updated { text-align: right; margin: 8px 0 0; }
 </style>
@@ -780,9 +873,9 @@ summary { cursor: pointer; color: #c5cbd3; }
 
 <?php if (!$authenticated): ?>
 <h2>Appareil non autorisé</h2>
-<p>Cette page n'est accessible que depuis ton téléphone. Pour l'autoriser,
-génère un code depuis ton PC&nbsp;:</p>
-<p><code>.\deploy.ps1 -PairPhone</code></p>
+<p>Cette page n'est accessible qu'à tes appareils autorisés. Pour autoriser
+celui-ci, génère un code depuis ton PC&nbsp;:</p>
+<p><code>.\deploy.ps1 -PairDevice NomDeLAppareil</code></p>
 <form method="post" action="index.php">
     <input type="hidden" name="csrf" value="<?php echo h($_SESSION['csrf']); ?>">
     <input type="hidden" name="action" value="pair">
@@ -790,7 +883,7 @@ génère un code depuis ton PC&nbsp;:</p>
            required autocomplete="one-time-code" autocapitalize="characters" spellcheck="false">
     <button type="submit">Autoriser cet appareil</button>
 </form>
-<p><small>Autoriser un nouvel appareil retire l'accès à tous les autres.</small></p>
+<p><small>Code valable 10 minutes, utilisable une seule fois.</small></p>
 <?php else: ?>
 <h2>Ajouter un torrent</h2>
 <form method="post" enctype="multipart/form-data">
@@ -803,7 +896,7 @@ génère un code depuis ton PC&nbsp;:</p>
 
 <div id="status"><?php echo render_status($statusDir, $_SESSION['csrf']); ?></div>
 
-<p class="updated"><small>Appareil autorisé le <?php echo h(date('d/m/Y', (int)$device['created'])); ?></small></p>
+<?php echo render_devices($stateDir, $device, $_SESSION['csrf']); ?>
 
 <script>
 (function () {
