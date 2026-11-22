@@ -13,9 +13,10 @@
     .\deploy.ps1 -PiHost 192.168.1.x autre adresse pour la Pi (defaut : 192.168.1.100)
 
   Appareils autorises sur le site
-    .\deploy.ps1 -PairPhone          code pour autoriser le telephone
-    .\deploy.ps1 -PairDevice PC      code pour autoriser un autre appareil (nom libre)
-    .\deploy.ps1 -ListDevices        liste des appareils autorises
+    .\deploy.ps1 -Pair Telephone     autorise un appareil (code a usage unique, nom libre)
+    .\deploy.ps1 -Pair PC
+    .\deploy.ps1 -Unpair PC          retire l'acces a un appareil
+    .\deploy.ps1 -Devices            liste des appareils autorises
 
   Suivi
     .\deploy.ps1 -PiStatus           transferts en cours sur la Pi, vitesse en direct
@@ -32,9 +33,11 @@ param(
     [switch]$PiOnly,
     [switch]$SetupKeys,
     [switch]$PiStatus,
-    [switch]$PairPhone,
-    [string]$PairDevice = "",
-    [switch]$ListDevices,
+    [Alias("PairDevice")]
+    [string]$Pair = "",
+    [string]$Unpair = "",
+    [Alias("ListDevices")]
+    [switch]$Devices,
     [Alias("h")]
     [switch]$Help
 )
@@ -75,13 +78,20 @@ foreach ($item in "seedbox", "web", "pi", "install-seedbox.sh", "install-kodi.sh
 
 # ------------------------------------------- autorisation du telephone
 $pairScript = "/media/sdt1/bibien/private/seedbox-manager/pair-device.sh"
-if ($PairPhone -and -not $PairDevice) { $PairDevice = "Telephone" }
-if ($PairDevice) {
-    if ($PairDevice -notmatch '^[A-Za-z0-9._-]{1,30}$') { Fail "Nom d'appareil : lettres, chiffres, . _ - (30 caracteres max, sans espace ni accent)" }
-    Invoke-Native "pair-device.sh" { ssh $SeedboxHost "sh $pairScript $PairDevice" }
+foreach ($name in @($Pair, $Unpair)) {
+    if ($name -and $name -notmatch '^[A-Za-z0-9._-]{1,30}$') {
+        Fail "Nom d'appareil : lettres, chiffres, . _ - (30 caracteres max, sans espace ni accent)"
+    }
+}
+if ($Pair) {
+    Invoke-Native "pair-device.sh" { ssh $SeedboxHost "sh $pairScript $Pair" }
     exit 0
 }
-if ($ListDevices) {
+if ($Unpair) {
+    Invoke-Native "pair-device.sh" { ssh $SeedboxHost "sh $pairScript --revoke $Unpair" }
+    exit 0
+}
+if ($Devices) {
     Invoke-Native "pair-device.sh" { ssh $SeedboxHost "sh $pairScript --list" }
     exit 0
 }

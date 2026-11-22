@@ -181,7 +181,7 @@ if [ "$FRESH" = 1 ]; then
     cat <<EOF
 
 Installation neuve : pense à
-  - autoriser tes appareils sur le site : .\\deploy.ps1 -PairPhone puis .\\deploy.ps1 -PairDevice PC
+  - autoriser tes appareils sur le site : .\\deploy.ps1 -Pair Telephone puis .\\deploy.ps1 -Pair PC
   - vérifier que le label Deluge « vivien » existe (journal : $BASE/logs/worker.log)
 EOF
 fi
@@ -190,7 +190,7 @@ cat <<EOF
 
 Installation terminée.
   Site web        : https://bibien.clymene.feralhosting.com/
-  Autoriser le téléphone : .\\deploy.ps1 -PairPhone  (ou sh $BASE/pair-device.sh)
+  Autoriser un appareil : .\\deploy.ps1 -Pair Telephone  (ou sh $BASE/pair-device.sh Telephone)
   Journaux        : $BASE/logs/
   Retour arrière  : cp $BACKUP/*.py $BACKUP/seedbox-loop.sh $BASE/ \\
                     && cp $BACKUP/index.php $WEB/ \\

@@ -322,7 +322,7 @@ function render_devices($stateDir, $current, $csrf)
             . '<input type="hidden" name="device_id" value="' . h($d['id']) . '">'
             . '<button type="submit" class="danger">Retirer l’accès</button></form></li>';
     }
-    echo '</ul><p><small>Ajouter un appareil : <code>.\\deploy.ps1 -PairDevice NomDeLAppareil</code></small></p></details>';
+    echo '</ul><p><small>Ajouter un appareil : <code>.\\deploy.ps1 -Pair NomDeLAppareil</code></small></p></details>';
     return ob_get_clean();
 }
 
@@ -875,7 +875,7 @@ summary { cursor: pointer; color: #c5cbd3; }
 <h2>Appareil non autorisé</h2>
 <p>Cette page n'est accessible qu'à tes appareils autorisés. Pour autoriser
 celui-ci, génère un code depuis ton PC&nbsp;:</p>
-<p><code>.\deploy.ps1 -PairDevice NomDeLAppareil</code></p>
+<p><code>.\deploy.ps1 -Pair NomDeLAppareil</code></p>
 <form method="post" action="index.php">
     <input type="hidden" name="csrf" value="<?php echo h($_SESSION['csrf']); ?>">
     <input type="hidden" name="action" value="pair">

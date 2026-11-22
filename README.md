@@ -66,8 +66,8 @@ accèdent au site ; tout autre navigateur voit « Appareil non autorisé ».
 
 1. Sur le PC, génère un code pour l'appareil :
    ```powershell
-   .\deploy.ps1 -PairPhone          # le téléphone
-   .\deploy.ps1 -PairDevice PC      # un autre appareil, avec le nom de ton choix
+   .\deploy.ps1 -Pair Telephone     # le téléphone
+   .\deploy.ps1 -Pair PC            # un autre appareil, avec le nom de ton choix
    ```
    Le code est valable 10 minutes et utilisable une seule fois.
 2. Sur l'appareil : ouvre le lien affiché (ou le site, puis tape le code)
@@ -79,7 +79,7 @@ garde que l'empreinte. Ré-autoriser un appareil sous le même nom remplace
 l'ancien (cookies effacés, nouveau téléphone…).
 
 La liste des appareils est en bas du site, avec un bouton **Retirer l'accès**.
-Depuis le PC : `.\deploy.ps1 -ListDevices`. Sur la seedbox :
+Depuis le PC : `.\deploy.ps1 -Devices` (liste) et `.\deploy.ps1 -Unpair PC` (retrait). Sur la seedbox :
 ```sh
 sh ~/private/seedbox-manager/pair-device.sh --list
 sh ~/private/seedbox-manager/pair-device.sh --revoke PC
