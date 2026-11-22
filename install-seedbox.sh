@@ -28,10 +28,17 @@ find "$HERE" -type f \( -name '*.py' -o -name '*.sh' -o -name '*.php' \) \
     -exec sed -i 's/\r$//' {} +
 ok "paquet complet ($HERE)"
 
-[ -d "$BASE" ] || die "$BASE introuvable"
-[ -d "$WEB" ]  || die "$WEB introuvable"
-[ -f "$BASE/config.php" ] || die "$BASE/config.php introuvable"
-ok "dossiers existants"
+[ -d "$WEB" ] || die "$WEB introuvable (dossier web de Feral)"
+[ -f "/media/sdt1/bibien/.config/deluge/auth" ] || die "fichier d'authentification Deluge introuvable"
+[ -d "/media/sdt1/bibien/private/deluge/data/Vivien/Videos" ] \
+    || die "dossier de téléchargement Deluge introuvable : ~/private/deluge/data/Vivien/Videos"
+if [ -d "$BASE" ] && [ -f "$BASE/seedbox-loop.sh" ]; then
+    ok "mise à jour de $BASE"
+    FRESH=0
+else
+    ok "installation neuve dans $BASE"
+    FRESH=1
+fi
 
 /usr/bin/python -c 'import twisted, deluge.ui.client' 2>/dev/null \
     || die "Python 2 / Deluge non importables avec /usr/bin/python"
@@ -85,6 +92,21 @@ ok "plus aucun traitement en cours"
 
 # --------------------------------------------------------------- installation
 say "Installation"
+mkdir -p "$BASE"
+chmod 700 "$BASE"
+
+# config.php : lu par la page web (hors de public_html)
+if [ ! -f "$BASE/config.php" ]; then
+    cat > "$BASE/config.php" <<PHP
+<?php
+return array(
+    'queue_dir' => '$BASE/queue',
+    'max_upload_bytes' => 52428800,
+);
+PHP
+    chmod 600 "$BASE/config.php"
+    ok "config.php créé"
+fi
 mkdir -p "$BASE/logs" "$BASE/status" "$BASE/state" "$BASE/organizer_queue" \
          "$BASE/organizer_processed" "$BASE/organizer_failed" \
          "$BASE/sync/ready" "$BASE/sync/processed" "$BASE/queue" \
@@ -154,6 +176,15 @@ say "Derniers journaux"
 for log in organizer.log status.log commands.log; do
     if [ -f "$BASE/logs/$log" ]; then echo "--- $log"; tail -n 8 "$BASE/logs/$log"; fi
 done
+
+if [ "$FRESH" = 1 ]; then
+    cat <<EOF
+
+Installation neuve : pense à
+  - autoriser tes appareils sur le site : .\\deploy.ps1 -PairPhone puis .\\deploy.ps1 -PairDevice PC
+  - vérifier que le label Deluge « vivien » existe (journal : $BASE/logs/worker.log)
+EOF
+fi
 
 cat <<EOF
 
