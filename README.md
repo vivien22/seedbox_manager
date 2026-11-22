@@ -5,7 +5,7 @@
 | Fichier | Où il va | Rôle |
 |---|---|---|
 | `seedbox/worker.py` | seedbox | ajoute les .torrent déposés à Deluge (label `vivien`) |
-| `seedbox/organizer_v2.py` | seedbox | range Films / Séries, écrit le manifeste pour la Pi |
+| `seedbox/organizer.py` | seedbox | range Films / Séries, écrit le manifeste pour la Pi |
 | `seedbox/commands.py` | seedbox | supprime de Deluge (avec les données) les torrents demandés depuis le site |
 | `seedbox/pair-device.sh` | seedbox | autorise un appareil sur le site (code à usage unique) |
 | `seedbox/status_dump.py` | seedbox | **nouveau** : exporte l'état des téléchargements pour le site |

@@ -30,7 +30,7 @@ while true; do
     /usr/bin/python "$BASE/worker.py"
 
     /usr/bin/flock -n "$BASE/organizer.lock" \
-        /usr/bin/python "$BASE/organizer_v2.py" >> "$BASE/logs/organizer.log" 2>&1
+        /usr/bin/python "$BASE/organizer.py" >> "$BASE/logs/organizer.log" 2>&1
 
     /usr/bin/flock -n "$BASE/commands.lock" \
         /usr/bin/python "$BASE/commands.py" >> "$BASE/logs/commands.log" 2>&1

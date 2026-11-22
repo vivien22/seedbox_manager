@@ -19,7 +19,7 @@ die()  { printf '\n\033[31mERREUR : %s\033[0m\n' "$*" >&2; exit 1; }
 # --------------------------------------------------------------- verifications
 say "Vérifications"
 
-for f in seedbox/worker.py seedbox/organizer_v2.py seedbox/status_dump.py seedbox/commands.py seedbox/pair-device.sh \
+for f in seedbox/worker.py seedbox/organizer.py seedbox/status_dump.py seedbox/commands.py seedbox/pair-device.sh \
          seedbox/seedbox-loop.sh web/index.php; do
     [ -f "$HERE/$f" ] || die "fichier manquant dans le paquet : $f"
 done
@@ -48,7 +48,7 @@ command -v flock >/dev/null || die "flock introuvable"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-for f in worker.py organizer_v2.py status_dump.py commands.py; do
+for f in worker.py organizer.py status_dump.py commands.py; do
     cp "$HERE/seedbox/$f" "$TMP/$f"
     /usr/bin/python -m py_compile "$TMP/$f" || die "erreur de syntaxe dans $f"
 done
@@ -74,7 +74,7 @@ ok "locale $LOCALE"
 # ----------------------------------------------------------------- sauvegarde
 say "Sauvegarde dans $BACKUP"
 mkdir -p "$BACKUP"
-for f in worker.py organizer_v2.py status_dump.py commands.py pair-device.sh seedbox-loop.sh; do
+for f in worker.py organizer.py organizer_v2.py status_dump.py commands.py pair-device.sh seedbox-loop.sh; do
     if [ -f "$BASE/$f" ]; then cp -p "$BASE/$f" "$BACKUP/"; fi
 done
 if [ -f "$WEB/index.php" ]; then cp -p "$WEB/index.php" "$BACKUP/index.php"; fi
@@ -113,13 +113,15 @@ mkdir -p "$BASE/logs" "$BASE/status" "$BASE/state" "$BASE/organizer_queue" \
          "$BASE/processed" "$BASE/failed" "$BASE/commands"
 chmod 700 "$BASE/status" "$BASE/state" "$BASE/commands"
 
-for f in worker.py organizer_v2.py status_dump.py commands.py pair-device.sh seedbox-loop.sh; do
+for f in worker.py organizer.py status_dump.py commands.py pair-device.sh seedbox-loop.sh; do
     cp "$HERE/seedbox/$f" "$BASE/$f"
     chmod 700 "$BASE/$f"
 done
 sed -i "s/^export LANG=.*/export LANG=$LOCALE/; s/^export LC_ALL=.*/export LC_ALL=$LOCALE/" \
     "$BASE/seedbox-loop.sh"
 rm -f "$BASE"/*.pyc
+# Ancien nom de l'organiseur (renomme en organizer.py)
+rm -f "$BASE/organizer_v2.py" "$BASE"/organizer_v2.py.*
 ok "scripts installés dans $BASE"
 
 cp "$HERE/web/index.php" "$WEB/index.php"
