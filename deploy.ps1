@@ -1,16 +1,29 @@
 <#
-  Deploiement de Seedbox Manager depuis le PC (Windows 10/11, client OpenSSH integre).
+.SYNOPSIS
+  Deploiement et gestion de Seedbox Manager depuis le PC.
 
-  Exemples :
-    .\deploy.ps1 -PiHost 192.168.1.50            # seedbox puis Raspberry Pi
-    .\deploy.ps1 -SeedboxOnly                    # seedbox seulement
-    .\deploy.ps1 -PiHost 192.168.1.50 -PiOnly    # Raspberry Pi seulement
-    .\deploy.ps1 -PiHost 192.168.1.50 -SetupKeys # installe ta cle SSH (plus de mot de passe ensuite)
-    .\deploy.ps1 -PiStatus                       # transferts en cours sur la Pi, vitesse en direct
-    .\deploy.ps1 -PairPhone                      # code pour autoriser ton telephone sur le site
-    .\deploy.ps1 -PairDevice PC                  # code pour autoriser un autre appareil (ici "PC")
-    .\deploy.ps1 -ListDevices                    # appareils autorises
+.DESCRIPTION
+  Sans option : met a jour la seedbox puis la Raspberry Pi.
+
+  Deploiement
+    .\deploy.ps1                     seedbox puis Raspberry Pi
+    .\deploy.ps1 -SeedboxOnly        seedbox seulement
+    .\deploy.ps1 -PiOnly             Raspberry Pi seulement
+    .\deploy.ps1 -SetupKeys          installe ta cle SSH (plus de mot de passe ensuite)
+    .\deploy.ps1 -PiHost 192.168.1.x autre adresse pour la Pi (defaut : 192.168.1.100)
+
+  Appareils autorises sur le site
+    .\deploy.ps1 -PairPhone          code pour autoriser le telephone
+    .\deploy.ps1 -PairDevice PC      code pour autoriser un autre appareil (nom libre)
+    .\deploy.ps1 -ListDevices        liste des appareils autorises
+
+  Suivi
+    .\deploy.ps1 -PiStatus           transferts en cours sur la Pi, vitesse en direct
+
+  Aide
+    .\deploy.ps1 -h                  affiche cette aide
 #>
+[CmdletBinding()]
 param(
     [string]$PiHost = "192.168.1.100",
     [string]$PiUser = "root",
@@ -21,8 +34,19 @@ param(
     [switch]$PiStatus,
     [switch]$PairPhone,
     [string]$PairDevice = "",
-    [switch]$ListDevices
+    [switch]$ListDevices,
+    [Alias("h")]
+    [switch]$Help
 )
+
+if ($Help) {
+    $text = Get-Content $PSCommandPath -Raw
+    $begin = $text.IndexOf(".DESCRIPTION") + ".DESCRIPTION".Length
+    $finish = $text.IndexOf("#>")
+    Write-Host ("`nSeedbox Manager - deploy.ps1`n" + $text.Substring($begin, $finish - $begin).TrimEnd())
+    Write-Host ""
+    exit 0
+}
 
 $ErrorActionPreference = "Stop"
 
